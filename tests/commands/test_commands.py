@@ -133,6 +133,8 @@ def test_list_exchanges(capsys):
     captured = capsys.readouterr()
     assert re.search(r"^binance$", captured.out, re.MULTILINE)
     assert re.search(r"^bybit$", captured.out, re.MULTILINE)
+    # An exchange not supporting futures
+    assert re.search(r"^kraken$", captured.out, re.MULTILINE)
 
     # Test with --all
     args = [
@@ -159,6 +161,32 @@ def test_list_exchanges(capsys):
     assert re.search(r"^binance$", captured.out, re.MULTILINE)
     assert re.search(r"^bingx$", captured.out, re.MULTILINE)
     assert re.search(r"^bitmex$", captured.out, re.MULTILINE)
+
+    # Only dex
+    args = [
+        "list-exchanges",
+        "--dex",
+    ]
+
+    start_list_exchanges(get_args(args))
+    captured = capsys.readouterr()
+    assert re.search(r"Exchanges available for Freqtrade.*", captured.out)
+    assert not re.search(r".*binance.*", captured.out)
+    assert not re.search(r".*bingx.*", captured.out)
+    assert re.search(r".*hyperliquid.*", captured.out)
+
+    # Only futures
+    args = [
+        "list-exchanges",
+        "--trading-mode",
+        "futures",
+    ]
+
+    start_list_exchanges(get_args(args))
+    captured = capsys.readouterr()
+    assert re.search(r"Exchanges available for Freqtrade.*", captured.out)
+    assert re.search(r".*binance.*", captured.out)
+    assert not re.search(r".*kraken.*", captured.out)
 
 
 def test_list_timeframes(mocker, capsys):
@@ -1748,6 +1776,27 @@ def test_start_list_data(testdatadir, capsys):
         captured.out,
     )
 
+    # Test with regex
+    args = [
+        "list-data",
+        "--pairs",
+        "XMR/.*",
+        "--datadir",
+        str(testdatadir),
+        "--show-timerange",
+    ]
+    pargs = get_args(args)
+    pargs["config"] = None
+    start_list_data(pargs)
+    captured = capsys.readouterr()
+    assert "Found 1 pair / timeframe combinations." in captured.out
+    assert re.search(r".*Pair.*Timeframe.*Type.*From .* To .* Candles .*\n", captured.out)
+    assert "UNITTEST/BTC" not in captured.out
+    assert re.search(
+        r"\n.* XMR/USDT .* 5m .* spot .* 2019-10-11 00:00:00 .* 2019-10-13 11:19:00 .* 2469 |\n",
+        captured.out,
+    )
+
 
 def test_start_list_trades_data(testdatadir, capsys):
     args = [
@@ -1781,6 +1830,39 @@ def test_start_list_trades_data(testdatadir, capsys):
         r"\n.* XRP/ETH .* spot .* 2019-10-11 00:00:01 .* 2019-10-13 11:19:28 .* 12477 .*|\n",
         captured.out,
     )
+
+    args = [
+        "list-data",
+        "--datadir",
+        str(testdatadir),
+        "--trades",
+        "--pairs",
+        "XRP/ETH",
+    ]
+    pargs = get_args(args)
+    pargs["config"] = None
+    start_list_data(pargs)
+    captured = capsys.readouterr()
+    assert "Found trades data for 1 pair." in captured.out
+    assert re.search(r".*Pair.*Type.*\n", captured.out)
+    assert re.search(
+        r"\n.* XRP/ETH .* spot .* 2019-10-11 00:00:01 .* 2019-10-13 11:19:28 .* 12477 .*|\n",
+        captured.out,
+    )
+
+    args = [
+        "list-data",
+        "--datadir",
+        str(testdatadir),
+        "--trades",
+        "--pairs",
+        "NO/PAIR",
+    ]
+    pargs = get_args(args)
+    pargs["config"] = None
+    start_list_data(pargs)
+    captured = capsys.readouterr()
+    assert "Found trades data for 0 pairs." in captured.out
 
     args = [
         "list-data",
@@ -1834,8 +1916,10 @@ def test_backtesting_show(mocker, testdatadir, capsys):
     sbr = mocker.patch("freqtrade.optimize.optimize_reports.show_backtest_results")
     args = [
         "backtesting-show",
+        "--export-directory",
+        f"{testdatadir / 'backtest_results'}",
         "--export-filename",
-        f"{testdatadir / 'backtest_results/backtest-result.json'}",
+        "backtest-result.json",
         "--show-pair-list",
     ]
     pargs = get_args(args)

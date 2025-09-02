@@ -49,7 +49,7 @@ class Okx(Exchange):
     }
 
     _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
-        # TradingMode.SPOT always supported and not required in this list
+        (TradingMode.SPOT, MarginMode.NONE),
         # (TradingMode.MARGIN, MarginMode.CROSS),
         # (TradingMode.FUTURES, MarginMode.CROSS),
         (TradingMode.FUTURES, MarginMode.ISOLATED),
@@ -287,3 +287,14 @@ class Okx(Exchange):
         orders_open = self._api.fetch_open_orders(pair, since=since_ms)
         orders.extend(orders_open)
         return orders
+
+
+class MyOkx(Okx):
+    """
+    MyOkx exchange class.
+    Minimal adjustment to disable futures trading for the EU subsidiary of Okx
+    """
+
+    _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
+        (TradingMode.SPOT, MarginMode.NONE),
+    ]

@@ -18,10 +18,7 @@ from freqtrade.constants import Config
 from freqtrade.enums import (
     NON_UTIL_MODES,
     TRADE_MODES,
-    CandleType,
-    MarginMode,
     RunMode,
-    TradingMode,
 )
 from freqtrade.exceptions import OperationalException
 from freqtrade.loggers import setup_logging
@@ -86,9 +83,6 @@ class Configuration:
         # Normalize config
         if "internals" not in config:
             config["internals"] = {}
-
-        if "pairlists" not in config:
-            config["pairlists"] = []
 
         # Keep a copy of the original configuration file
         config["original_config"] = deepcopy(config)
@@ -215,13 +209,28 @@ class Configuration:
         config.update({"datadir": create_datadir(config, self.args.get("datadir"))})
         logger.info("Using data directory: %s ...", config.get("datadir"))
 
+        self._args_to_config(
+            config, argname="exportdirectory", logstring="Using {} as backtest directory ..."
+        )
+
         if self.args.get("exportfilename"):
             self._args_to_config(
                 config, argname="exportfilename", logstring="Storing backtest results to {} ..."
             )
             config["exportfilename"] = Path(config["exportfilename"])
-        else:
-            config["exportfilename"] = config["user_data_dir"] / "backtest_results"
+            if config.get("exportdirectory") and Path(config["exportdirectory"]).is_dir():
+                logger.warning(
+                    "DEPRECATED: Using `--export-filename` with directories is deprecated, "
+                    "use `--backtest-directory` instead."
+                )
+                if config.get("exportdirectory") is None:
+                    # Fallback - assign export-directory directly.
+                    config["exportdirectory"] = config["exportfilename"]
+        if not config.get("exportdirectory"):
+            config["exportdirectory"] = config["user_data_dir"] / "backtest_results"
+        if not config.get("exportfilename"):
+            config["exportfilename"] = None
+        config["exportdirectory"] = Path(config["exportdirectory"])
 
         if self.args.get("show_sensitive"):
             logger.warning(
@@ -397,11 +406,6 @@ class Configuration:
         self._args_to_config(
             config, argname="trading_mode", logstring="Detected --trading-mode: {}"
         )
-        config["candle_type_def"] = CandleType.get_default(
-            config.get("trading_mode", "spot") or "spot"
-        )
-        config["trading_mode"] = TradingMode(config.get("trading_mode", "spot") or "spot")
-        config["margin_mode"] = MarginMode(config.get("margin_mode", "") or "")
         self._args_to_config(
             config, argname="candle_types", logstring="Detected --candle-types: {}"
         )
